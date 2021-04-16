@@ -51,7 +51,6 @@ function TableSet(options){
   let tableset = {}; // this is the return object
   let pendingcommandlog = []; // the command log which hasn't been flushed to disk yet.
   let logfile = "";
-  let quoteall = options['quoteall']? true : false;
   let autoparse = options['autoparse']? true : false;
 
   tableset.newTable = (name, after) => {
@@ -82,13 +81,13 @@ function TableSet(options){
       const table = tables[tablename];
       const headers = table.headers;
       const autoid = headers[0].toLowerCase().trim() == "autoid";
-      const headerstr = table.headers.map(quoteall? quotewrap : x=>x).join(",");
+      const headerstr = table.headers.join(",");
       stream.write(`newtable ${tablename} ${headerstr}`);
       for(const key in tableids){
         const rowid = table.ids[key];
         const row = table.rows[rowid];
         let rowstr = rowToString(row);
-        if(autoid) rowstr = `${(quoteall? quotewrap : x=>x)(rowid)},${rowstr}`;
+        if(autoid) rowstr = `${rowid},${rowstr}`;
         stream.write(`addrow ${rowstr}`);
       }
     }
@@ -153,7 +152,6 @@ function Table(headers, options){
   checkType(options, "object");
 
   // TODO let savedelay = ; // the minimum time between saving
-  let quoteall = options['quoteall']? true : false;
   let autoparse = options['autoparse']? true : false;
   let filename = options['filename']? options['filename'] : null;
   let folder = options['folder']? options['folder'] : '.';
@@ -161,7 +159,6 @@ function Table(headers, options){
   
   fs.mkdirSync(folder, {recursive: true});
 
-  // checkType(quoteall, "boolean");
   // checkType(autoid, "boolean");
   // checkType(autoparse, "boolean");
   if(filename) checkType(filename, "string");
@@ -170,6 +167,12 @@ function Table(headers, options){
   // the autoid prop, just determines whether that is saved.
   let currentAutoId = 1;
 
+  let columnquoted = [];
+  for(let i=0; i<headers.length; ++i){
+    let header = headers[i].trim();
+    let n = header.length - 1;
+    columnquoted[i] = (header[0] == "'" && header[n] == "'" || header[0] == '"' && header[n] == '"');
+  }
   let table = {
     headers: headers,
     rows: [],
@@ -212,10 +215,6 @@ function Table(headers, options){
     return rowid;
   }
   table.setProp = (name, value)=>{
-    if(name == "quoteall"){
-      checkType(value, 'boolean');
-      quoteall = value;
-    }
     if(name == "autoid"){
       checkType(value, 'boolean');  
       autoid = value;
@@ -266,9 +265,9 @@ function Table(headers, options){
       }
       stream.on('finish', ()=>after(true));
     }
-    const quotewrap = x=> '"' + x + '"'
-    let headerstr = table.headers.map(quoteall? quotewrap : x=>x).join(",");
-    if(autoid) headerstr = (quoteall? '"AutoId",' : "AutoId,") + headerstr
+    const quotecolumn = x,i=> columnquoted[i]?'"' + x + '"' : x;
+    let headerstr = table.headers.map(quotecolumn).join(",");
+    if(autoid) headerstr = "AutoId," + headerstr
     stream.write(headerstr + "\n");
     //console.log(table);
     for(const key in table.ids){
@@ -276,7 +275,7 @@ function Table(headers, options){
       const row = table.rows[rowid];
       //console.log(key, rowid, row);
       let rowstr = rowToString(row);
-      if(autoid) rowstr = `${(quoteall? quotewrap : x=>x)(rowid)},` + rowstr;
+      if(autoid) rowstr = `${rowid},${rowstr}`;
       stream.write(rowstr + "\n");
     }
   }
@@ -370,7 +369,7 @@ function Table(headers, options){
     for(let i=0; i<row.length; ++i){
       let entry = (typeof row[i] == "bigint")? row[i] + "n" : "" + row[i];
       let special = entry.indexOf('"') >= 0 || entry.indexOf("\n") >= 0 || entry.indexOf(",") >= 0 || entry.indexOf("'") >= 0;
-      if(quoteall || special){
+      if(columnquoted[i] || special){
         try{
           entry = JSON.stringify(entry);
         } catch(e){
