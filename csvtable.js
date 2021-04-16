@@ -1,6 +1,9 @@
 
 // csv table raw connection
 //
+const CSVFOLDER = "csv";
+const LOGFOLDER = "log";
+const LOGEXTENSION = ".csvlog";
 
 if(require.main === module){
   TestServer();
@@ -43,27 +46,67 @@ function ServerHandler(sock){
 
 function TableSet(options){
   let folder = options['folder']? options['folder'] : DEFAULT_FOLDER;
-  let tables = {};
-  let tableset = {};
-  let commandlog = [];
+  let tablesetname = options['tablesetname']? options['tablesetname'] : "csvdatabase";
+  let tables = {}; // this is the internal object
+  let tableset = {}; // this is the return object
+  let pendingcommandlog = []; // the command log which hasn't been flushed to disk yet.
+  let logfile = "";
+  let quoteall = options['quoteall']? true : false;
+  let autoparse = options['autoparse']? true : false;
 
-  tableset.newTable = (name) => {
-    if(tablename in tables){
-      throw new Error(`newtable: Table ${tablename} already exists.`);
+  tableset.newTable = (name, after) => {
+    if(name in tables){
+      throw new Error(`newtable: Table ${name} already exists.`);
     }
-    tables[name] =
+    tables[name] = "blah";
+    after(true);
   }
 
-  tableset.rmTable = (name) => {
+  tableset.rmTable = (name, after) => {
+    if(name in tables){
+      delete tables[name];
+      after(true);
+    } else {
+      throw new Error(`rmtable: Table ${name} does not exist.`);
+    }
   }
 
   // rewrite the logfile.
   // this overwrites any changes that are not reflected in the current database state.
-  tableset.rewriteLog = ()=>{
+  tableset.rewriteLog = (deleteold, after)=>{
+    const date = new Date();
+    logfile = "" + date.getFullYear() + (date.getMonth() + 1) + date.getDate() + tablesetname + LOGEXTENSION;
+    const path = folder + "/" + LOGFOLDER + "/" + logfile;
+    const stream = fs.createWriteStream(path, {encoding: 'utf8'});
+    for(const tablename in tables){
+      const table = tables[tablename];
+      const headers = table.headers;
+      const autoid = headers[0].toLowerCase().trim() == "autoid";
+      const headerstr = table.headers.map(quoteall? quotewrap : x=>x).join(",");
+      stream.write(`newtable ${tablename} ${headerstr}`);
+      for(const key in tableids){
+        const rowid = table.ids[key];
+        const row = table.rows[rowid];
+        let rowstr = rowToString(row);
+        if(autoid) rowstr = `${(quoteall? quotewrap : x=>x)(rowid)},${rowstr}`;
+        stream.write(`addrow ${rowstr}`);
+      }
+    }
+
+    if(after) stream.on('finish', ()=>after(true));
   }
 
   // flush
   tableset.flushLog = ()=>{
+    if(!logfile || !logfile.length){
+      tableset.rewriteLog();
+    } else {
+      let path = folder + "/" + LOGFOLDER + "/" + logfile;
+      for(let i=0; i<pendingcommandlog.length; ++i){
+        let line = pendingcommandlog[i].join(" ") + "\n";
+      }
+      pendingcommandlog.length = 0;
+    }
   }
 
 
@@ -99,6 +142,7 @@ const BigIntRegex = /^[+-]?\d+n$/;
 // Otherwise, A table is indexed by the first column.
 // For a given database, it is recommended not to switch between autoid and manual id.
 
+// TODO autoid is only enabled if the first column of the headers is "AutoId", case insensitive.
 function Table(headers, options){
 
   if(!options) options = {};
@@ -110,10 +154,10 @@ function Table(headers, options){
 
   // TODO let savedelay = ; // the minimum time between saving
   let quoteall = options['quoteall']? true : false;
-  let autoid = options['autoid']? true : false; // generate an id, instead of using first entry.
   let autoparse = options['autoparse']? true : false;
   let filename = options['filename']? options['filename'] : null;
   let folder = options['folder']? options['folder'] : '.';
+  let autoid = options['autoid']? true : false; // generate an id, instead of using first entry.
   
   fs.mkdirSync(folder, {recursive: true});
 
@@ -236,6 +280,7 @@ function Table(headers, options){
       stream.write(rowstr + "\n");
     }
   }
+  // TODO a field is default quoted if the header is quoted.
   table.load = (after)=>{
     if(!after) after = (success)=> console.log(`Table load ${success? "succeeded" : "failed"}`);
     if(typeof after != "function"){
