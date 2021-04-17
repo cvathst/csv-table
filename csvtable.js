@@ -6,11 +6,37 @@ const LOGFOLDER = "log";
 const LOGEXTENSION = ".csvlog";
 
 if(require.main === module){
+  Test();
   TestServer();
 } else {
   module.exports = TableSet;
 }
 
+function Test(){
+  let tables = {};
+  let args = {options: {folder: "data/csv", emit: x => console.log(x)}};
+  TableCommand(tables, args, "loadall");
+  setTimeout(()=>console.log('tables', tables), 300);
+  return;
+  TableCommand(tables, args, "newtable test a, b, c");
+  TableCommand(tables, args, "newtable user username, email, psalt, phash");
+  TableCommand(tables, args, 'setprop user autoid true');
+  TableCommand(tables, args, 'load User');
+  setTimeout(()=>{
+    //console.log(tables);
+    //console.log(tables.User.rows);
+    TableCommand(tables, args, "addrow test 1,2,3");
+    TableCommand(tables, args, "addrow test hello, world!!!");
+    TableCommand(tables, args, "getrow test 1");
+    TableCommand(tables, args, 'addrow user joe, joe@example.com, e2k0n3, a23n3o2o');
+    TableCommand(tables, args, 'addrow user bill, elevatorrepairman@example.com, weihfoij, fwonofe');
+    TableCommand(tables, args, 'getrow user 1');
+    TableCommand(tables, args, 'getrow user 2');
+    TableCommand(tables, args, 'save user');
+    TableCommand(tables, args, 'saveall');
+  }, 3000)
+  console.log('waiting...');
+}
 
 function TestServer(){
   let HOST = '127.0.0.1';
@@ -49,24 +75,31 @@ function TableSet(options){
   let tablesetname = options['tablesetname']? options['tablesetname'] : "csvdatabase";
   let tables = {}; // this is the internal object
   let tableset = {}; // this is the return object
-  let pendingcommandlog = []; // the command log which hasn't been flushed to disk yet.
+  let pendinglog = []; // the command log which hasn't been flushed to disk yet.
   let logfile = "";
   let autoparse = options['autoparse']? true : false;
 
-  tableset.newTable = (name, after) => {
+  tableset.newTable = (name, headers, after) => {
+    pendinglog.push(['newtable', name, ...headers]);
     if(name in tables){
-      throw new Error(`newtable: Table ${name} already exists.`);
+      let msg = `newtable: Table ${name} already exists.`;
+      console.warn(msg);
+      if(after) after(false, msg);
+    } else {
+      tables[name] = Table(headers, options);
+      if(after) after(true);
     }
-    tables[name] = "blah";
-    after(true);
   }
 
   tableset.rmTable = (name, after) => {
+    pendinglog.push(['rmtable', name]);
     if(name in tables){
       delete tables[name];
-      after(true);
+      if(after) after(true);
     } else {
-      throw new Error(`rmtable: Table ${name} does not exist.`);
+      let msg = `rmtable: Table ${name} does not exist.`;
+      console.warn(msg);
+      if(after) after(false, msg);
     }
   }
 
@@ -116,10 +149,10 @@ function TableSet(options){
   tableset.logTimestamp = ()=>{
   }
 
-  tableset.loadAll = ()=>{
+  tableset.dumpCSV = ()=>{
   }
 
-  tableset.saveAll = ()=>{
+  tableset.loadCSV = ()=>{
   }
 
   tableset.command = (text)=>{
@@ -265,7 +298,7 @@ function Table(headers, options){
       }
       stream.on('finish', ()=>after(true));
     }
-    const quotecolumn = x,i=> columnquoted[i]?'"' + x + '"' : x;
+    const quotecolumn = (x,i)=> columnquoted[i]?'"' + x + '"' : x;
     let headerstr = table.headers.map(quotecolumn).join(",");
     if(autoid) headerstr = "AutoId," + headerstr
     stream.write(headerstr + "\n");
@@ -464,6 +497,7 @@ function TableLoad(tablename, folder){
 
 
 
+/*
 function TelnetServer(options){
 
   let tables = {};
@@ -501,7 +535,8 @@ function TelnetServer(options){
     })
   }).listen(port);
   console.log(`CSVTable: telnet server listening on port ${port}`);
-}
+  }
+ */
        
 function TableCommand(tables, args, line){
   let options = args['options']? args['options'] : {};
@@ -554,6 +589,7 @@ function TableCommand(tables, args, line){
       table.load(()=> emit(`'${tablename}' loaded.`));
     }
     fs.readdir(folder, (err, files) => {
+      if(!files) return;
       files.forEach(file => {
         let match = file.match(/^(.*)\.csv$/);
         if(match){
@@ -649,38 +685,14 @@ function TableCommand(tables, args, line){
     table.deleteRow(row);
   }
 }
-function Test(){
-  let tables = {};
-  let args = {options: {folder: "data/csv", emit: x => console.log(x)}};
-  TableCommand(tables, args, "loadall");
-  setTimeout(()=>console.log('tables', tables), 300);
-  return;
-  TableCommand(tables, args, "newtable test a, b, c");
-  TableCommand(tables, args, "newtable user username, email, psalt, phash");
-  TableCommand(tables, args, 'setprop user autoid true');
-  TableCommand(tables, args, 'load User');
-  setTimeout(()=>{
-    //console.log(tables);
-    //console.log(tables.User.rows);
-    TableCommand(tables, args, "addrow test 1,2,3");
-    TableCommand(tables, args, "addrow test hello, world!!!");
-    TableCommand(tables, args, "getrow test 1");
-    TableCommand(tables, args, 'addrow user joe, joe@example.com, e2k0n3, a23n3o2o');
-    TableCommand(tables, args, 'addrow user bill, elevatorrepairman@example.com, weihfoij, fwonofe');
-    TableCommand(tables, args, 'getrow user 1');
-    TableCommand(tables, args, 'getrow user 2');
-    TableCommand(tables, args, 'save user');
-    TableCommand(tables, args, 'saveall');
-  }, 3000)
-  console.log('waiting...');
-}
 if(require.main === module){
-  //Test();
-  TelnetServer();
+  Test();
+  //TelnetServer();
 }
+
 Table.TableLoad = TableLoad;
 Table.TableCommand = TableCommand;
 Table.HttpServer = HttpServer;
-Table.TelnetServer = TelnetServer;
+// Table.TelnetServer = TelnetServer;
 Table.Test = Test;
 module.exports = Table;
