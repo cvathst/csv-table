@@ -4,6 +4,7 @@
 const CSVFOLDER = "csv";
 const LOGFOLDER = "log";
 const LOGEXTENSION = ".csvlog";
+const DEFAULTTABLESETNAME = "csvdata";
 
 if(require.main === module){
   Test();
@@ -39,10 +40,10 @@ function Test(){
 }
 
 function TestServer(){
-  let HOST = '127.0.0.1';
-  let PORT = 6666;
+  const HOST = '127.0.0.1';
+  const PORT = 6666;
 
-  let server = RawServer(HOST, PORT);
+  const server = RawServer(HOST, PORT);
 
   console.log(`CSVTable Server Listening on port ${PORT}`);
 }
@@ -50,15 +51,16 @@ function TestServer(){
 
 function RawServer(host, port){
   let net = require('net');
-  let server = net.createServer(ServerHandler);
+  let server = net.createServer(RawServerHandler);
   server.listen(port, host);
   return server;
 }
+
 function HttpServer(options){
 }
 
 
-function ServerHandler(sock){
+function RawServerHandler(sock){
   sock.write('Connection opened. > ');
   sock.on("data", (data) => {
     sock.write(`Received data length ${('' + data).length} > `);
@@ -70,14 +72,23 @@ function ServerHandler(sock){
 }
 
 
+<<<<<<< Updated upstream
 function TableSet(options){
   let folder = options['folder']? options['folder'] : DEFAULT_FOLDER;
   let tablesetname = options['tablesetname']? options['tablesetname'] : "csvdatabase";
   let tables = {}; // this is the internal object
   let tableset = {}; // this is the return object
   let pendinglog = []; // the command log which hasn't been flushed to disk yet.
+=======
+function TableSet({ tablesetname: DEFAULTTABLESETNAME, autoparse: true }){
+  const folder = tablesetname;
+21
+  const tables = {}; // this is the internal object
+  const tableset = {}; // this is the return object
+  const pendinglog = []; // the command log which hasn't been flushed to disk yet.
+
+>>>>>>> Stashed changes
   let logfile = "";
-  let autoparse = options['autoparse']? true : false;
 
   tableset.newTable = (name, headers, after) => {
     pendinglog.push(['newtable', name, ...headers]);
@@ -108,14 +119,18 @@ function TableSet(options){
   tableset.rewriteLog = (deleteold, after)=>{
     const date = new Date();
     logfile = "" + date.getFullYear() + (date.getMonth() + 1) + date.getDate() + tablesetname + LOGEXTENSION;
+  
     const path = folder + "/" + LOGFOLDER + "/" + logfile;
     const stream = fs.createWriteStream(path, {encoding: 'utf8'});
+
     for(const tablename in tables){
       const table = tables[tablename];
       const headers = table.headers;
       const autoid = headers[0].toLowerCase().trim() == "autoid";
       const headerstr = table.headers.join(",");
+
       stream.write(`newtable ${tablename} ${headerstr}`);
+
       for(const key in tableids){
         const rowid = table.ids[key];
         const row = table.rows[rowid];
