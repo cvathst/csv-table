@@ -72,22 +72,14 @@ function RawServerHandler(sock){
 }
 
 
-<<<<<<< Updated upstream
-function TableSet(options){
-  let folder = options['folder']? options['folder'] : DEFAULT_FOLDER;
-  let tablesetname = options['tablesetname']? options['tablesetname'] : "csvdatabase";
-  let tables = {}; // this is the internal object
-  let tableset = {}; // this is the return object
-  let pendinglog = []; // the command log which hasn't been flushed to disk yet.
-=======
+
 function TableSet({ tablesetname: DEFAULTTABLESETNAME, autoparse: true }){
   const folder = tablesetname;
-21
+
   const tables = {}; // this is the internal object
   const tableset = {}; // this is the return object
   const pendinglog = []; // the command log which hasn't been flushed to disk yet.
 
->>>>>>> Stashed changes
   let logfile = "";
 
   tableset.newTable = (name, headers, after) => {
