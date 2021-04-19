@@ -1,10 +1,16 @@
 
+const fs = require("fs");
+// regexes
+const FloatRegex = /^[+-]?\d+(\.\d+)?$/;
+const HexRegex = /0x[0-9a-fA-F]+$/;
+const BigIntRegex = /^[+-]?\d+n$/;
+
 // csv table raw connection
 //
 const CSVFOLDER = "csv";
 const LOGFOLDER = "log";
 const LOGEXTENSION = ".csvlog";
-const DEFAULTTABLESETNAME = "csvdata";
+const DEFAULTDB = "csvdata";
 
 if(require.main === module){
   Test();
@@ -73,8 +79,8 @@ function RawServerHandler(sock){
 
 
 
-function TableSet({ tablesetname: DEFAULTTABLESETNAME, autoparse: true }){
-  const folder = tablesetname;
+function TableSet({ dbname: DEFAULTDB, autoparse }){
+  const folder = dbname;
 
   const tables = {}; // this is the internal object
   const tableset = {}; // this is the return object
@@ -110,7 +116,7 @@ function TableSet({ tablesetname: DEFAULTTABLESETNAME, autoparse: true }){
   // this overwrites any changes that are not reflected in the current database state.
   tableset.rewriteLog = (deleteold, after)=>{
     const date = new Date();
-    logfile = "" + date.getFullYear() + (date.getMonth() + 1) + date.getDate() + tablesetname + LOGEXTENSION;
+    logfile = "" + date.getFullYear() + (date.getMonth() + 1) + date.getDate() + dbname + LOGEXTENSION;
   
     const path = folder + "/" + LOGFOLDER + "/" + logfile;
     const stream = fs.createWriteStream(path, {encoding: 'utf8'});
@@ -167,15 +173,6 @@ function TableSet({ tablesetname: DEFAULTTABLESETNAME, autoparse: true }){
 
   return tableset;
 }
-
-
-
-const fs = require('fs');
-
-// regexes
-const FloatRegex = /^[+-]?\d+(\.\d+)?$/;
-const HexRegex = /0x[0-9a-fA-F]+$/;
-const BigIntRegex = /^[+-]?\d+n$/;
 
 // If autoid is on, the table is indexed, by an automatically generated id.
 // Otherwise, A table is indexed by the first column.
