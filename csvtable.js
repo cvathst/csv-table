@@ -10,7 +10,7 @@ const BigIntRegex = /^[+-]?\d+n$/;
 const CSVFOLDER = "csv";
 const LOGFOLDER = "log";
 const LOGEXTENSION = ".csvlog";
-const DEFAULTDB = "csvdata";
+const DEFAULTDB = "csvdb";
 
 if(require.main === module){
   Test();
@@ -24,7 +24,7 @@ function Test(){
   let args = {options: {folder: "data/csv", emit: x => console.log(x)}};
   TableCommand(tables, args, "loadall");
   setTimeout(()=>console.log('tables', tables), 300);
-  return;
+  // return;
   TableCommand(tables, args, "newtable test a, b, c");
   TableCommand(tables, args, "newtable user username, email, psalt, phash");
   TableCommand(tables, args, 'setprop user autoid true');
