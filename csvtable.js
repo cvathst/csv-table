@@ -11,6 +11,7 @@ const CSVFOLDER = "csv";
 const LOGFOLDER = "log";
 const LOGEXTENSION = ".csvlog";
 const DEFAULTDB = "csvdb";
+const MAXLOGSIZE = 30 * 1000 * 1000;
 
 if(require.main === module){
   Test();
@@ -68,13 +69,29 @@ function HttpServer(options){
 
 function RawServerHandler(sock){
   sock.write('Connection opened. > ');
+  let line = "";
+  let tableset = TableSet();
+  
   sock.on("data", (data) => {
-    sock.write(`Received data length ${('' + data).length} > `);
+    handleData(data);
   })
   sock.on("close", (data) => {
-    sock.write(`Received data length ${('' + data).length} > `);
-    sock.write('Connection closed.');
+    handleData(data);
+    if(line.length) line += "\n";
+    handleData("");
   })
+  function handleData(data){
+    let n = line.length;
+    line += data.toString("utf-8");
+    let nextline = "";
+    let i = line.indexOf("\n");
+    if(i >= 0){
+      nextline = line.substring(i);
+      line = line.substring(0, i);
+      tableset.command(line);
+      line = nextline;
+    }
+  }
 }
 
 
@@ -112,6 +129,9 @@ function TableSet({ dbname: DEFAULTDB, autoparse }){
     }
   }
 
+  tableset.loadLog(after) => {
+  }
+
   // rewrite the logfile.
   // this overwrites any changes that are not reflected in the current database state.
   tableset.rewriteLog = (deleteold, after)=>{
@@ -137,8 +157,9 @@ function TableSet({ dbname: DEFAULTDB, autoparse }){
         stream.write(`addrow ${rowstr}`);
       }
     }
-
     if(after) stream.on('finish', ()=>after(true));
+  }
+  tableset.nextLogFile = ()=>{
   }
 
   // flush
@@ -179,6 +200,7 @@ function TableSet({ dbname: DEFAULTDB, autoparse }){
 // For a given database, it is recommended not to switch between autoid and manual id.
 
 // TODO autoid is only enabled if the first column of the headers is "AutoId", case insensitive.
+// TODO revision checking if column "Revision" comes before the rest of the normal headers(after AutoId).
 function Table(headers, options){
 
   if(!options) options = {};
